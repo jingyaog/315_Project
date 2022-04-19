@@ -1,0 +1,67 @@
+---
+title: "36-315 Final Project"
+author: "Aaron Gong, Steven Han, Kan Sun, Ethan Wu"
+date: "Due Date: 05/02/2022"
+output: html_document
+---
+
+## Preliminaries
+
+```{r}
+library(tidyverse)
+```
+
+```{r}
+# Download data from https://www.kaggle.com/datasets/sobhanmoosavi/us-accidents to ./data and unzip it
+
+# Drop some columns to save space
+# df = read_csv("./data/US_Accidents_Dec21_updated.csv")
+# df[c("End_Lat", "End_Lng", "Description", "Civil_Twilight", "Nautical_Twilight", "Astronomical_Twilight")] = NULL
+# write_csv(df, "./data/accidents.csv")
+# rm(list = ls())
+```
+
+```{r}
+df = read_csv("./data/accidents.csv")
+```
+
+
+## Is Severity Related to the Road Condition?
+
+As mentioned in the beginning, this dataset contains a number of indicators of road conditions near the accident location, such as the presence of a stop sign, of a speed bump, of a railway, etc. Conceivably, the presence or lack thereof of these road conditions is predictive of the severity of an accident. In this section, however, we focus on the traffic signal. This choice makes intuitive sense, because people typically slow down near the traffic light or even completely stop when it is red. With decreased speed, the accident tends to be less serious or may be prevented in the first place. 
+
+```{r}
+df$Traffic_Signal = ifelse(df$Traffic_Signal, "Yes", "No")
+```
+
+According to the stacked bar plot, we notice that for the least severe accidents, nearly half of the sites have a traffic signal nearby. However, for accidents that create greater impact on traffic, the majority of them take place where there is no traffic signal. This phenomenon is consistent across all severity levels above 1, which suggests that traffic signal might have made a difference in the prevention of serious accidents. Despite this intuition interpretation, we refrain from making an assertive causal statement, as there can be other factors in play. For instance, most part of a road cannot be covered by any traffic signal, so naturally traffic signals are less likely to "witness" an accident. 
+
+```{r}
+df %>% 
+  ggplot(aes(Severity)) + 
+  geom_bar(aes(fill=Traffic_Signal), position="fill") + 
+  scale_fill_discrete("Traffic Signal") + 
+  labs(
+    title="Number of Accidents by Severity and Presence of Traffic Signal", 
+    x="Severity", 
+    y="Accident count"
+  )
+```
+
+With that being said, we can still perform some statistical inference on the relationship between accident severity and road condition (traffic signal, in this case). This analysis can be done graphically and numerically. The mosaic plot shows the distribution, conditioned on the presence of traffic signal nearby, of accidents at different severity levels. At first sight, we can notice that the accidents with some impact (severity 2) are dominant in this dataset no matter there exists a traffic signal or not. Furthermore, the visualization of Pearson residuals indicates that when a traffic signal presents, we observe significantly less accidents at severity 2, but significantly more accidents that are less severe (severity 1) or more serious (severity 3 and 4). In the mosaic plot, the dark blue and and dark red blocks suggest that the presence of traffic signal and the severity are not independent. 
+
+```{r}
+mosaicplot(
+  table(df$Traffic_Signal, df$Severity), 
+  shade=TRUE, 
+  main="Presence of Traffic Signal vs Severity of Accidents", 
+  xlab="Presence of traffic signal", 
+  ylab="Severity"
+)
+```
+
+Finally, a formal statistical test is performed to measure the strength of evidence against the null hypothesis of independence. According to the output of the $\chi^2$ test, the $p$-value is extremely close to 0, indicating unlikeness to obtain such data if accident severity and presence of traffic signal were independent. At this point, although other road conditions are not investigated, the plots and tests can be naturally extended to other binary indicators. However, since traffic signal is one of many variables related to road conditions, we can safely conclude that accident severity is related to some road conditions. 
+
+```{r}
+chisq.test(table(df$Traffic_Signal, df$Severity))
+```
