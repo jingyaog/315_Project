@@ -1,0 +1,106 @@
+---
+title: "map"
+author: "Aaron Gong"
+date: "04/25/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## Modify data
+
+```{r}
+# accidents = read.csv("./data/accidents.csv")
+# accidents = subset(accidents, select = -c(End_Time, Description, Country,
+#                                           Civil_Twilight, Nautical_Twilight,
+#                                           Astronomical_Twilight))
+# head(accidents)
+# write.csv(accidents, "./data/accidents_modified.csv", row.names = FALSE)
+
+# # Compute center latitude and longitude
+# accidents$Center_Lat = (accidents$Start_Lat + accidents$End_Lat) / 2
+# accidents$Center_Lng = (accidents$Start_Lng + accidents$End_Lng) / 2
+
+# Convert Visibility into categorical variable
+# accidents = within(accidents, {   
+#   Visibility.cat <- NA
+#   Visibility.cat[Visibility.mi. < 0.5] <- "Very poor"
+#   Visibility.cat[Visibility.mi. >= 0.5 & Visibility.mi. < 2] <- "Poor"
+#   Visibility.cat[Visibility.mi. >= 2 & Visibility.mi. < 5] <- "Moderate"
+#   Visibility.cat[Visibility.mi. >= 5 & Visibility.mi. < 10] <- "Good"
+#   Visibility.cat[Visibility.mi. >= 10] <- "Very good"
+#    } )
+
+head(accidents)
+table(accidents$Severity)
+sort(table(accidents$City), decreasing=TRUE)[1:20]
+which(accidents$Visibility.mi. == 140)
+```
+
+
+
+```{r}
+metro = data.frame(sort(table(accidents$City), decreasing=TRUE)[1:20])
+ggplot(data = metro, aes(x = Var1, y = Freq)) +
+  geom_bar(stat = "identity", fill = "deepskyblue") +
+  scale_x_discrete(guide = guide_axis(angle = 45)) +
+  labs(
+    x = "City",
+    y = "Number of accidents"
+  )
+```
+
+
+
+```{r, message=FALSE}
+library(tidyverse)
+library(ggmap)
+
+# #step 1: draw the box
+# pitt <- c(left = -79.9959 - 2, bottom = 40.4406 - 2,
+#           right = -79.9959 + 2, top = 40.4406 + 2)
+# 
+# #step 2: use get_stamenmap to specify maptype/zoom
+# map_base <- get_stamenmap(pitt, maptype = "toner-lite", zoom = 8)
+# 
+# #step 3: draw the map with ggmap
+# map_object <- ggmap(map_base, extent = "device", 
+#                     ylab = "Latitude", xlab = "Longitude")
+# map_object
+US <- c(left = -125, bottom = 10, right = -67, top = 49)
+map <- get_stamenmap(US, zoom = 5, maptype = "toner-lite")
+
+ggmap(map) +
+  geom_point(data = subset(accidents, Severity == 1), 
+             aes(x = Center_Lng, y = Center_Lat, color = Visibility.mi.), size = 0.2, 
+             alpha = .1) +
+  scale_color_gradient2(low = "orangered4", mid = "orange", high = "green", 
+                        midpoint = 6, limits = c(0, 10))
+
+ggmap(map) +
+  geom_point(data = subset(accidents, Severity == 2), 
+             aes(x = Center_Lng, y = Center_Lat, color = Visibility.mi.), size = 0.2, 
+             alpha = .1) +
+  scale_color_gradient2(low = "orangered4", mid = "orange", high = "green", 
+                        midpoint = 6, limits = c(0, 10))
+
+ggmap(map) +
+  geom_point(data = subset(accidents, Severity == 3),
+             aes(x = Center_Lng, y = Center_Lat, color = Visibility.mi.), size = 0.2,
+             alpha = .1) +
+  scale_color_gradient2(low = "orangered4", mid = "orange", high = "green", 
+                        midpoint = 6, limits = c(0, 10))
+
+ggmap(map) +
+  geom_point(data = subset(accidents, Severity == 4),
+             aes(x = Center_Lng, y = Center_Lat, color = Visibility.mi.), size = 0.2,
+             alpha = .1) +
+  scale_color_gradient2(low = "orangered4", mid = "orange", high = "green", 
+                        midpoint = 6, limits = c(0, 10))
+```
+
+
+
