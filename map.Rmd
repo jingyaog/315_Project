@@ -1,8 +1,10 @@
 ---
 title: "map"
 author: "Aaron Gong"
-date: "04/25/2022"
-output: pdf_document
+date: "04/28/2022"
+output:
+  html_document:
+    df_print: paged
 ---
 
 ```{r setup, include=FALSE}
@@ -10,97 +12,156 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 
-## Modify data
 
-```{r}
-# accidents = read.csv("./data/accidents.csv")
-# accidents = subset(accidents, select = -c(End_Time, Description, Country,
-#                                           Civil_Twilight, Nautical_Twilight,
-#                                           Astronomical_Twilight))
-# head(accidents)
-# write.csv(accidents, "./data/accidents_modified.csv", row.names = FALSE)
+```{r, message=FALSE}
+# Load packages
 
-# # Compute center latitude and longitude
-# accidents$Center_Lat = (accidents$Start_Lat + accidents$End_Lat) / 2
-# accidents$Center_Lng = (accidents$Start_Lng + accidents$End_Lng) / 2
-
-# Convert Visibility into categorical variable
-# accidents = within(accidents, {   
-#   Visibility.cat <- NA
-#   Visibility.cat[Visibility.mi. < 0.5] <- "Very poor"
-#   Visibility.cat[Visibility.mi. >= 0.5 & Visibility.mi. < 2] <- "Poor"
-#   Visibility.cat[Visibility.mi. >= 2 & Visibility.mi. < 5] <- "Moderate"
-#   Visibility.cat[Visibility.mi. >= 5 & Visibility.mi. < 10] <- "Good"
-#   Visibility.cat[Visibility.mi. >= 10] <- "Very good"
-#    } )
-
-head(accidents)
-table(accidents$Severity)
-sort(table(accidents$City), decreasing=TRUE)[1:20]
-which(accidents$Visibility.mi. == 140)
+library(tidyverse)
+library(ggmap)
+library(forcats)
 ```
 
 
 
+## Research Question: What is the spatial distribution of car accidents and their severity?
+
+
+## Modify data
+
+We want to represent each accident as a point on the map, so we modify our data
+to obtain the so-called **point pattern data**. The original data only provides
+a range of longitude and latitude of each accident (given by `Start_Lat`,
+`End_Lat`, `Start_Lng`, and `End_Lng`). In our modification, we compute
+`Center_Lat` and `Center_Lng`, giving us the center coordinate of the accident,
+which we will use to plot on the US map.
+
 ```{r}
-metro = data.frame(sort(table(accidents$City), decreasing=TRUE)[1:20])
-ggplot(data = metro, aes(x = Var1, y = Freq)) +
-  geom_bar(stat = "identity", fill = "deepskyblue") +
+accidents = read.csv("./data/accidents.csv")
+
+# Delete unused columns
+accidents = subset(accidents, select = -c(End_Time, Description, Country,
+                                          Civil_Twilight, Nautical_Twilight,
+                                          Astronomical_Twilight))
+# Convert Severity to factor 
+accidents$Severity = factor(accidents$Severity)
+
+# Save the modified data
+# write.csv(accidents, "./data/accidents_modified.csv", row.names = FALSE)
+
+# Compute center latitude and longitude
+accidents$Center_Lat = (accidents$Start_Lat + accidents$End_Lat) / 2
+accidents$Center_Lng = (accidents$Start_Lng + accidents$End_Lng) / 2
+
+# head(accidents)
+```
+
+
+
+## 1. Accidents in Top 20 Metropolitans
+
+What are the cities in the US with most car accidents? We first draw the top 20
+metropolitans with the most number of car accidents. We create a stacked bar
+plot, displaying the conditional distribution of `Severity` of accidents for
+each metropolitan.
+
+
+```{r}
+# 1. Major cities stakced bar plot
+
+
+metros = data.frame(sort(table(accidents$City), decreasing=TRUE)[1:20])
+metro_accidents = accidents %>% filter(City %in% metros$Var1)
+# head(metro_accidents)
+
+ggplot(data = metro_accidents, aes(fct_infreq(City), fill = Severity)) +
+  geom_bar() +
   scale_x_discrete(guide = guide_axis(angle = 45)) +
   labs(
     x = "City",
-    y = "Number of accidents"
-  )
+    y = "Number of accidents",
+    title = "Top 20 Metropolitans with Most Accidents"
+  ) +
+  theme(plot.title = element_text(hjust = 0.5))
 ```
 
+The graph above shows the top 20 metropolitans with most accidents. In particular,
+the top 3 cities are Miami, Los Angeles, and Orlando, two of which are in Florida.
+The number of accidents in Miami is way higher compared to any other city.
+In terms of severity, most of the accidents have a severity level of 2. Other
+levels of severity seem to take up a negligible proportion for the majority of
+the cities, except for Dallas, Houston, and Atlanta. Level 3 (more severe)
+accidents take up a relatively significant proportion for Dallas and Houston,
+both of which are in Texas. For Atlanta, GA, Level 3 and Level 4 accidents both
+take up a noticeable proportion.
 
 
-```{r, message=FALSE}
-library(tidyverse)
-library(ggmap)
 
-# #step 1: draw the box
-# pitt <- c(left = -79.9959 - 2, bottom = 40.4406 - 2,
-#           right = -79.9959 + 2, top = 40.4406 + 2)
-# 
-# #step 2: use get_stamenmap to specify maptype/zoom
-# map_base <- get_stamenmap(pitt, maptype = "toner-lite", zoom = 8)
-# 
-# #step 3: draw the map with ggmap
-# map_object <- ggmap(map_base, extent = "device", 
-#                     ylab = "Latitude", xlab = "Longitude")
-# map_object
+## 2. Accidents density plot
+
+We then create a graph that shows the density of car accidents across the US.
+
+```{r, message=FALSE, warning=FALSE}
+# 2. Accidents density plot
+
+# Load US Map
 US <- c(left = -125, bottom = 10, right = -67, top = 49)
 map <- get_stamenmap(US, zoom = 5, maptype = "toner-lite")
 
-ggmap(map) +
-  geom_point(data = subset(accidents, Severity == 1), 
-             aes(x = Center_Lng, y = Center_Lat, color = Visibility.mi.), size = 0.2, 
-             alpha = .1) +
-  scale_color_gradient2(low = "orangered4", mid = "orange", high = "green", 
-                        midpoint = 6, limits = c(0, 10))
 
+set.seed(315)
+samp = sample(1:nrow(accidents), size=100000, replace=FALSE)
 ggmap(map) +
-  geom_point(data = subset(accidents, Severity == 2), 
-             aes(x = Center_Lng, y = Center_Lat, color = Visibility.mi.), size = 0.2, 
-             alpha = .1) +
-  scale_color_gradient2(low = "orangered4", mid = "orange", high = "green", 
-                        midpoint = 6, limits = c(0, 10))
-
-ggmap(map) +
-  geom_point(data = subset(accidents, Severity == 3),
-             aes(x = Center_Lng, y = Center_Lat, color = Visibility.mi.), size = 0.2,
-             alpha = .1) +
-  scale_color_gradient2(low = "orangered4", mid = "orange", high = "green", 
-                        midpoint = 6, limits = c(0, 10))
-
-ggmap(map) +
-  geom_point(data = subset(accidents, Severity == 4),
-             aes(x = Center_Lng, y = Center_Lat, color = Visibility.mi.), size = 0.2,
-             alpha = .1) +
-  scale_color_gradient2(low = "orangered4", mid = "orange", high = "green", 
-                        midpoint = 6, limits = c(0, 10))
+  stat_density2d(data = accidents[samp,], 
+                 aes(x = Center_Lng, y = Center_Lat, fill = after_stat(level)), 
+                 alpha = 0.5, geom = "polygon") +
+  labs(
+    x = "Longitude",
+    y = "Latitude",
+    title = "Density of Car Accidents in the US"
+  ) +
+  theme(plot.title = element_text(hjust = 0.5))
 ```
 
+As shown in the graph, most car accidents happen in the metropolitan areas that
+we identified above. In particular, accidents are clustered in: Los Angeles
+(Southern California), the Bay Area (Northern California), Miami and Orlando
+(Florida), New York, Philadelphia, Charlotte (Northeastern part), as well as
+some other cities including Dallas, Houston, Portland, Chicago, Minneapolis, etc.
+The number of car accidents in other small cities and (rural) areas is
+insignificant compared to these metropolitan areas.
 
+
+
+## 3. Distribution of Severity
+
+How severe are the accidents in different parts of the US? In other words, how
+is the `Severity` variable of accidents distributed across the US? We make a
+plot of all accidents on the map, colored by their severity.
+
+```{r, warning=FALSE}
+# 3. Distribution of Severity
+
+ggmap(map) +
+  geom_point(data = accidents,
+             aes(x = Center_Lng, y = Center_Lat, color = Severity), size = 0.1,
+             alpha = .1) +
+  guides(color = guide_legend(override.aes = list(alpha = 1, size = 2))) +
+  labs(
+    x = "Longitude",
+    y = "Latitude",
+    title = "Distribution of Severity of US Car Accidents"
+  ) +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+We can see from the plot that the majority of the accidents happen near the
+Western and Eastern coast, where most population reside. A small proportion of
+accidents happen in the middle part of the US. Also notice that, interestingly,
+the patterns of the points of accidents follow the main highways in the US. In
+terms of severity, the graph shows that there are generally more severe
+accidents (Level 3 or 4) in the East than in the West (most Level 2), especially
+Level 4 accidents. One thing worth noting is that even in the middle part of the
+US where relatively few accidents happen, some states do have very severe
+accidents. Examples are Colorado and Texas, where most accidents are of Level
+3 and Level 4.
 
